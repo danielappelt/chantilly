@@ -104,16 +104,20 @@ osc2_amp_env = hslider("h:[4]Mixer/[5]Osc2 Env [style:knob]", 0, -1, 1, 0.01);
 osc2_amp_vel = hslider("h:[4]Mixer/[6]Osc2 Vel [style:knob]", 0, -1, 1, 0.01); // TODO
 osc2_amp_mod = (osc2_amp_vel + osc2_amp_env) * ((osc2_amp_sel == 1) * env1 + (osc2_amp_sel == 2) * env2);
 
+// Mix osc1, osc2, and RMod and apply crack AM as requested
+// TODO: should crack AM be added to or replace a portion of the original signal (which it does currently).
 mix = osc1_lev * osc1, osc2_lev * osc2, rmod_lev * rmod :> *(1 - crack_lev + crack_lev * crack);
 
 // Filter section
 // Filter types: fi.resonlp, fi.resonhp, fi.resonbp, fi.notchw
 // TODO: EQ-Lo- / Hi-Shelf / EQ-Bell-Type
 flt_sel = nentry("h:[5]Filter/[0]Type", 1, 1, 4, 1);
-// TODO: notch filter width should be selected depending on the "sounds frequency"
-flt_flt(f) = (flt_sel == 1) * fi.resonlp(f, 2, flt_res), (flt_sel == 2) * fi.resonhp(f, 2, flt_res), (flt_sel == 3) * fi.resonbp(f, 2, flt_res), (flt_sel == 4) * fi.bandstop(1, f-100, f+100) :> _;
+
 flt_f = hslider("h:[5]Filter/[1]Cutoff [style:knob]", 1000, 11.56, 18794, 1) : si.smoo;
-flt_res = hslider("h:[5]Filter/[2]Resonance [style:knob]", 0.2, 0, 1, 0.01) : si.smoo;
+flt_res = hslider("h:[5]Filter/[2]Resonance [style:knob]", 30, 10, 50, 0.01) : si.smoo;
+
+// TODO: notch filter width should be selected depending on the "sounds frequency"
+flt_flt(f) = (flt_sel == 1) * fi.resonlp(f, flt_res, 1), (flt_sel == 2) * fi.resonhp(f, flt_res, 1), (flt_sel == 3) * fi.resonbp(f, flt_res, 1), (flt_sel == 4) * fi.bandstop(1, f-100, f+100) :> _;
 
 flt_env_sel = nentry("h:[5]Filter/[3]Env", 1, 1, 2, 1);
 flt_env = hslider("h:[5]Filter/[4]Env [style:knob]", 0, -1, 1, 0.01);
@@ -122,27 +126,32 @@ flt_vel = hslider("h:[5]Filter/[5]Vel [style:knob]", 0, -1, 1, 0.01); // TODO
 flt_mod = (flt_vel + flt_env) * ((flt_env_sel == 1) * env1 + (flt_env_sel == 2) * env2);
 flt_freq = flt_f * (1 + flt_mod / 12);
 
+// TODO: drive, triangle LFO mod
 // cubicnl
 // Cubic nonlinearity distortion. cubicnl is a standard Faust library.
 // Usage:
 // _ : cubicnl(drive,offset) : _
 // _ : cubicnl_nodc(drive,offset) : _
 
+// Amplifier
+// Volume -Inf..0 db, Vel, Pan
+// amp_lev = hslider("h:[6]Amplifier/[0]Volume [style:knob]", 0.5, 0, 1, 0.001) : si.smoo;
+amp_env = hslider("h:[6]Amplifier/[0]Volume [style:knob]", 0.5, -1, 1, 0.01);
+amp_vel = hslider("h:[6]Amplifier/[1]Vel [style:knob]", 0, -1, 1, 0.01); // TODO
+amp_mod = (amp_vel + amp_env) * env2;
+gain = button("h:[6]Amplifier/[2]Hit");
+
 // Envelopes
 // TODO: Add shape parameter, time sliders should be logarithmic
-env1_a = hslider("h:[6]Envelopes/h:Env 1/[0]Attack [style:knob]", 0, 0, 8, 0.05) : si.smoo;
-env1_d = hslider("h:[6]Envelopes/h:Env 1/[1]Decay [style:knob]", 0.2, 0, 16, 0.05) : si.smoo;
-env1_r = hslider("h:[6]Envelopes/h:Env 1/[2]Release [style:knob]", 0, 0, 16, 0.05) : si.smoo;
+env1_a = hslider("h:[7]Envelopes/h:Env 1/[0]Attack [style:knob]", 0, 0, 8, 0.05) : si.smoo;
+env1_d = hslider("h:[7]Envelopes/h:Env 1/[1]Decay [style:knob]", 0.2, 0, 16, 0.05) : si.smoo;
+env1_r = hslider("h:[7]Envelopes/h:Env 1/[2]Release [style:knob]", 0, 0, 16, 0.05) : si.smoo;
 env1 = en.adsr(env1_a, env1_d, 0, env1_r, gain);
 
 // TODO: This is a copy of env1
-env2_a = hslider("h:[6]Envelopes/h:Env 2/[0]Attack [style:knob]", 0, 0, 8, 0.05) : si.smoo;
-env2_d = hslider("h:[6]Envelopes/h:Env 2/[0]Decay [style:knob]", 0.2, 0, 16, 0.05) : si.smoo;
-env2_r = hslider("h:[6]Envelopes/h:Env 2/[0]Release [style:knob]", 0, 0, 16, 0.05) : si.smoo;
+env2_a = hslider("h:[7]Envelopes/h:Env 2/[0]Attack [style:knob]", 0, 0, 8, 0.05) : si.smoo;
+env2_d = hslider("h:[7]Envelopes/h:Env 2/[0]Decay [style:knob]", 0.2, 0, 16, 0.05) : si.smoo;
+env2_r = hslider("h:[7]Envelopes/h:Env 2/[0]Release [style:knob]", 0, 0, 16, 0.05) : si.smoo;
 env2 = en.adsr(env2_a, env2_d, 0, env2_r, gain);
 
-gain = button("Hit");
-
-// Mix osc1, osc2, and RMod and apply crack AM as requested
-// TODO: should crack AM be added to or replace a portion of the original signal (which it does currently).
-process = mix <: flt_flt(flt_freq) :> *(gain);
+process = mix <: flt_flt(flt_freq) :> *(amp_mod);
