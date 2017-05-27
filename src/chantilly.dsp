@@ -25,31 +25,32 @@ import("stdfaust.lib");
 // Oscillators
 // triangle, sine, pulse, sawtooth
 // TODO: sample&hold (pitch determines hold time), noise (neg. pitch: pink, pos.: blue), closed hh/open hh/crash sample
-
 // no.pink_noise
-// no.noise
+// no.noise + "neg. f" lowpass + "pos. freq" highpass
 // sample&hold: sAndH is a standard Faust function: _ : sAndH(t) : _
+osc(i, fMult) = fMult * freq : wf with {
+    // waveform selection
+    sel = nentry("h:[%i]Osc %i/[0]Shape", 1, 1, 4, 1);
+    wf(f) = (sel == 1) * os.triangle(f), (sel == 2) * os.oscsin(f), (sel == 3) * os.square(f), (sel == 4) * os.sawtooth(f) :> _;
 
-// Oscillator waveform
-osc1_sel = nentry("h:[1]Osc 1/[0]Shape", 0, 0, 3, 1);
-osc1_osc(f) = (osc1_sel == 0) * os.triangle(f), (osc1_sel == 1) * os.oscsin(f), (osc1_sel == 2) * os.square(f), (osc1_sel == 3) * os.sawtooth(f) :> _;
+    // C-11..E10, TODO: chromatic slider / display
+    f = hslider("h:[%i]Osc %i/[1]Pitch [style:knob]", 50, 0.007984, 20000, 0.01) : si.smoo;
+    // transposition: 0 half tones -> 1*freq, 12 half tones -> 2*freq => 1 + ht/12 => 1 + cents/1200
+    d = hslider("h:[%i]Osc %i/[2]Detune [style:knob]", 0, -50, 50, 1) : si.smoo;
 
-// C-11..E10, TODO: chromatic slider / display
-osc1_f = hslider("h:[1]Osc 1/[1]Pitch [style:knob]", 50, 0.007984, 20000, 0.01) : si.smoo;
+    // Select envelope 1 or 2 for pitch modulation. Scale it using env slider and velocity.
+    env_sel = nentry("h:[%i]Osc %i/[3]Pitch Env", 1, 1, 2, 1);
+    env = hslider("h:[%i]Osc %i/[4]Pitch Env [style:knob]", 0, -1, 1, 0.01);
+    vel = hslider("h:[%i]Osc %i/[5]Pitch Vel [style:knob]", 0, -1, 1, 0.01); // TODO
 
-// transposition: 0 half tones -> 1*freq, 12 half tones -> 2*freq => 1 + ht/12 => 1 + cents/1200
-osc1_d = hslider("h:[1]Osc 1/[2]Detune [style:knob]", 0, -50, 50, 1) : si.smoo;
+    // env1, and env2 deliver values in [0..1], osc1_env allows scaling this with [-1..1]
+    // TODO: osc1_vel must be controllable by velocity
+    mod = (vel + env) * ((env_sel == 1) * env1 + (env_sel == 2) * env2);
+    // detune range: -50..50 cents, mod range: -100..100 cents
+    freq = f * (1 + d / 1200 + mod / 12);
+};
 
-// Select envelope 1 or 2 for pitch modulation. Scale it using env slider and velocity.
-osc1_env_sel = nentry("h:[1]Osc 1/[3]Pitch Env", 1, 1, 2, 1);
-osc1_env = hslider("h:[1]Osc 1/[4]Pitch Env [style:knob]", 0, -1, 1, 0.01);
-osc1_vel = hslider("h:[1]Osc 1/[5]Pitch Vel [style:knob]", 0, -1, 1, 0.01); // TODO
-
-// env1, and env2 deliver values in [0..1], osc1_env allows scaling this with [-1..1]
-// TODO: osc1_vel must be controllable by velocity
-osc1_mod = (osc1_vel + osc1_env) * ((osc1_env_sel == 1) * env1 + (osc1_env_sel == 2) * env2);
-// detune range: -50..50 cents, mod range: -100..100 cents
-osc1_freq = osc1_f * (1 + osc1_d / 1200 + osc1_mod / 12);
+osc2 = osc(2, 1);
 
 // FM (0..100%), linear scale up to times 8
 // https://en.wikipedia.org/wiki/Frequency_modulation_synthesis
@@ -64,23 +65,8 @@ fm_vel = hslider("h:[1]Osc 1/[9]FM Vel [style:knob]", 0, -1, 1, 0.01); // TODO
 // TODO: fm_vel must be controllable by velocity
 fm_mod = (fm_vel + fm_env) * ((fm_env_sel == 1) * env1 + (fm_env_sel == 2) * env2);
 
-// TODO: Oscillator 2 is just a copy of Oscillator 1 without FM
-osc2_sel = nentry("h:[2]Osc 2/[0]Shape", 0, 0, 3, 1);
-osc2_osc(f) = (osc2_sel == 0) * os.triangle(f), (osc2_sel == 1) * os.oscsin(f), (osc2_sel == 2) * os.square(f), (osc2_sel == 3) * os.sawtooth(f) :> _;
-
-osc2_f = hslider("h:[2]Osc 2/[1]Pitch [style:knob]", 50, 0.007984, 20000, 0.01) : si.smoo;
-osc2_d = hslider("h:[2]Osc 2/[2]Detune [style:knob]", 0, -50, 50, 1) : si.smoo;
-
-osc2_env_sel = nentry("h:[2]Osc 2/[3]Pitch Env", 1, 1, 2, 1);
-osc2_env = hslider("h:[2]Osc 2/[4]Pitch Env [style:knob]", 0, -1, 1, 0.01);
-osc2_vel = hslider("h:[2]Osc 2/[5]Pitch Vel [style:knob]", 0, -1, 1, 0.01); // TODO
-
-osc2_mod = (osc2_vel + osc2_env) * ((osc2_env_sel == 1) * env1 + (osc2_env_sel == 2) * env2);
-osc2_freq = osc2_f * (1 + osc2_d / 1200 + osc2_mod / 12);
-
-osc2 = osc2_freq : osc2_osc;
 // TODO: is this the correct formula for FM with osc1 carrier, and osc2 modulator?
-osc1 = osc1_freq * (1 + fm_index * (1 + fm_mod) * osc2) : osc1_osc;
+osc1 = osc(1, (1 + fm_index * (1 + fm_mod) * osc2));
 
 // Ring modulation, see https://en.wikipedia.org/wiki/Ring_modulation
 rmod = osc1 * osc2;
@@ -142,16 +128,14 @@ amp_mod = (amp_vel + amp_env) * env2;
 gain = button("h:[6]Amplifier/[2]Hit");
 
 // Envelopes
-// TODO: Add shape parameter, time sliders should be logarithmic
-env1_a = hslider("h:[7]Envelopes/h:Env 1/[0]Attack [style:knob]", 0, 0, 8, 0.05) : si.smoo;
-env1_d = hslider("h:[7]Envelopes/h:Env 1/[1]Decay [style:knob]", 0.2, 0, 16, 0.05) : si.smoo;
-env1_r = hslider("h:[7]Envelopes/h:Env 1/[2]Release [style:knob]", 0, 0, 16, 0.05) : si.smoo;
-env1 = en.adsr(env1_a, env1_d, 0, env1_r, gain);
+env(i) = en.adsr(a, d, 0, r, gain) with {
+    // TODO: Add shape parameter, time sliders should be logarithmic
+    a = hslider("h:[7]Envelopes/h:Env %i/[0]Attack [style:knob]", 0, 0, 8, 0.05) : si.smoo;
+    d = hslider("h:[7]Envelopes/h:Env %i/[1]Decay [style:knob]", 0.2, 0, 16, 0.05) : si.smoo;
+    r = hslider("h:[7]Envelopes/h:Env %i/[2]Release [style:knob]", 0, 0, 16, 0.05) : si.smoo;
+};
 
-// TODO: This is a copy of env1
-env2_a = hslider("h:[7]Envelopes/h:Env 2/[0]Attack [style:knob]", 0, 0, 8, 0.05) : si.smoo;
-env2_d = hslider("h:[7]Envelopes/h:Env 2/[0]Decay [style:knob]", 0.2, 0, 16, 0.05) : si.smoo;
-env2_r = hslider("h:[7]Envelopes/h:Env 2/[0]Release [style:knob]", 0, 0, 16, 0.05) : si.smoo;
-env2 = en.adsr(env2_a, env2_d, 0, env2_r, gain);
+env1 = env(1);
+env2 = env(2);
 
 process = mix <: flt_flt(flt_freq) :> *(amp_mod);
