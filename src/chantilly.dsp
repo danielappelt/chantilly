@@ -25,15 +25,16 @@ import("stdfaust.lib");
 // Oscillators
 // triangle, sine, pulse, sawtooth
 // TODO: sample&hold (pitch determines hold time), noise (neg. pitch: pink, pos.: blue), closed hh/open hh/crash sample
-// no.pink_noise
-// no.noise + "neg. f" lowpass + "pos. freq" highpass
+// noise: first try..no.noise + "neg. f" lowpass + "pos. freq" highpass
 // sample&hold: sAndH is a standard Faust function: _ : sAndH(t) : _
 osc(i, fMult) = fMult * freq : wf with {
     // waveform selection
-    sel = nentry("h:[%i]Osc %i/[0]Shape", 1, 1, 4, 1);
-    wf(f) = (sel == 1) * os.triangle(f), (sel == 2) * os.oscsin(f), (sel == 3) * os.square(f), (sel == 4) * os.sawtooth(f) :> _;
+    sel = nentry("h:[%i]Osc %i/[0]Shape", 1, 1, 5, 1);
+    // Freq. range is logarithmic, so sqrt(20000) = 141 should be the center freq. Use this for the noise oscillator
+    wf(f) = (sel == 1) * os.triangle(f), (sel == 2) * os.oscsin(f), (sel == 3) * os.square(f), (sel == 4) * os.sawtooth(f),
+        (sel == 5) * (no.noise <: ba.if(f > 141, fi.highpass(2, f), fi.lowpass(2, f))) :> _;
 
-    // C-11..E10, TODO: chromatic slider / display
+    // C-11..E10, TODO: log scale + chromatic slider / display
     f = hslider("h:[%i]Osc %i/[1]Pitch [style:knob]", 50, 0.007984, 20000, 0.01) : si.smoo;
     // transposition: 0 half tones -> 1*freq, 12 half tones -> 2*freq => 1 + ht/12 => 1 + cents/1200
     d = hslider("h:[%i]Osc %i/[2]Detune [style:knob]", 0, -50, 50, 1) : si.smoo;
