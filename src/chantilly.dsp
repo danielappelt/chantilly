@@ -29,10 +29,12 @@ import("stdfaust.lib");
 // sample&hold: sAndH is a standard Faust function: _ : sAndH(t) : _
 osc(i, fMult) = fMult * freq : wf with {
     // waveform selection
-    sel = nentry("h:[%i]Osc %i/[0]Shape", 1, 1, 5, 1);
+    sel = nentry("h:[%i]Osc %i/[0]Shape", 1, 1, 6, 1);
     // Freq. range is logarithmic, so sqrt(20000) = 141 should be the center freq. Use this for the noise oscillator
     wf(f) = (sel == 1) * os.triangle(f), (sel == 2) * os.oscsin(f), (sel == 3) * os.square(f), (sel == 4) * os.sawtooth(f),
-        (sel == 5) * (no.noise <: ba.if(f > 141, fi.highpass(2, f), fi.lowpass(2, f))) :> _;
+        (sel == 5) * (no.noise <: ba.if(f > 141, fi.highpass(2, f), fi.lowpass(2, f))),
+        // latch samples no.noise at positive zero crossings of os.triangle(f)
+        (sel == 6) * (no.noise : ba.latch(os.triangle(f))) :> _;
 
     // C-11..E10, TODO: log scale + chromatic slider / display
     f = hslider("h:[%i]Osc %i/[1]Pitch [style:knob]", 50, 0.007984, 20000, 0.01) : si.smoo;
