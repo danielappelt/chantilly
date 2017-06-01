@@ -30,14 +30,17 @@ import("stdfaust.lib");
 osc(i, fMult) = fMult * freq : wf with {
     // waveform selection
     sel = nentry("h:[%i]Osc %i/[0]Shape", 1, 1, 6, 1);
-    // Freq. range is logarithmic, so sqrt(20000) = 141 should be the center freq. Use this for the noise oscillator
     wf(f) = (sel == 1) * os.triangle(f), (sel == 2) * os.oscsin(f), (sel == 3) * os.square(f), (sel == 4) * os.sawtooth(f),
+        // freq. range is logarithmic, so sqrt(20000) = 141 should be the center freq. Use this for the noise oscillator
         (sel == 5) * (no.noise <: ba.if(f > 141, fi.highpass(2, f), fi.lowpass(2, f))),
         // latch samples no.noise at positive zero crossings of os.triangle(f)
         (sel == 6) * (no.noise : ba.latch(os.triangle(f))) :> _;
 
-    // C-11..E10, TODO: log scale + chromatic slider / display
-    f = hslider("h:[%i]Osc %i/[1]Pitch [style:knob]", 50, 0.007984, 20000, 0.01) : si.smoo;
+    // C-11..E10
+    // TODO: logarithmic scale. See
+    // https://github.com/grame-cncm/faust/blob/master/architecture/faust/gui/MetaDataUI.h#L294
+    // TODO: chromatic slider / display
+    f = hslider("h:[%i]Osc %i/[1]Pitch [scale:log][style:knob]", 50, 0.007984, 20000, 0.01) : si.smoo;
     // transposition: 0 half tones -> 1*freq, 12 half tones -> 2*freq => 1 + ht/12 => 1 + cents/1200
     d = hslider("h:[%i]Osc %i/[2]Detune [style:knob]", 0, -50, 50, 1) : si.smoo;
 
@@ -128,6 +131,10 @@ flt_freq = flt_f * (1 + flt_mod / 12);
 amp_env = hslider("h:[6]Amplifier/[0]Volume [style:knob]", 0.5, -1, 1, 0.01);
 amp_vel = hslider("h:[6]Amplifier/[1]Vel [style:knob]", 0, -1, 1, 0.01); // TODO
 amp_mod = (amp_vel + amp_env) * env2;
+// TODO: add MIDI implementation. See
+// https://github.com/grame-cncm/faust/blob/master/architecture/faust/gui/MidiUI.h#L462
+// https://github.com/grame-cncm/faust/blob/master/examples/misc/midiTester.dsp#L11
+// http://musinf.univ-st-etienne.fr/lac2017/pdfs/09_C_B_137724.pdf
 gain = button("h:[6]Amplifier/[2]Hit");
 
 // Envelopes
