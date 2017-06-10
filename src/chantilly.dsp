@@ -23,14 +23,25 @@ declare copyright "Copyright (C) 2017 Daniel Appelt";
 import("stdfaust.lib");
 
 // Oscillators
-// triangle, sine, pulse, sawtooth
+// triangle, sine (actually it's a cosine), pulse, sawtooth
 // TODO: sample&hold (pitch determines hold time), noise (neg. pitch: pink, pos.: blue), closed hh/open hh/crash sample
 // noise: first try..no.noise + "neg. f" lowpass + "pos. freq" highpass
 // sample&hold: sAndH is a standard Faust function: _ : sAndH(t) : _
 osc(i, fMult) = fMult * freq : wf with {
-    // waveform selection
+    // shape / waveform selection
     sel = nentry("h:[%i]Osc %i/[0]Shape", 1, 1, 6, 1);
-    wf(f) = (sel == 1) * os.triangle(f), (sel == 2) * os.oscsin(f), (sel == 3) * os.square(f), (sel == 4) * os.sawtooth(f),
+    // Please note that we try to phase shift triangle, sine, square, and saw so that
+    // they start with maximum amplitude. This way, we can create the typical click sound
+    // at the beginning. If you don't want the click, turn env2 attack up.
+    wf(f) =
+        // Phase shift is done using @ delay. See sawNp(N,freq,phase) definition inside oscillators library.
+        // TODO: Currently, the phase shift only works as expected starting from a pitch around 2 Hz, as we
+        // restrict the delay to 8191 samples.
+        (sel == 1) * (os.triangle(f) : @(max(0,min(8191,int(0.25 * ma.SR/freq))))),
+        // Effectively, we use cosine here in order to start the sine wave with maximum amplitude.
+        (sel == 2) * os.oscrc(f),
+        (sel == 3) * os.square(f),
+        (sel == 4) * os.sawtooth(f),
         // freq. range is logarithmic, so sqrt(20000) = 141 should be the center freq. Use this for the noise oscillator
         (sel == 5) * (no.noise <: ba.if(f > 141, fi.highpass(2, f), fi.lowpass(2, f))),
         // latch samples no.noise at positive zero crossings of os.triangle(f)
@@ -40,9 +51,9 @@ osc(i, fMult) = fMult * freq : wf with {
     // TODO: logarithmic scale. See
     // https://github.com/grame-cncm/faust/blob/master/architecture/faust/gui/MetaDataUI.h#L294
     // TODO: chromatic slider / display
-    f = hslider("h:[%i]Osc %i/[1]Pitch [scale:log][style:knob]", 50, 0.007984, 20000, 0.01) : si.smoo;
+    f = hslider("h:[%i]Osc %i/[1]Pitch [unit: Hz][scale:log][style:knob]", 50, 0.007984, 20000, 0.01) : si.smoo;
     // transposition: 0 half tones -> 1*freq, 12 half tones -> 2*freq => 1 + ht/12 => 1 + cents/1200
-    d = hslider("h:[%i]Osc %i/[2]Detune [style:knob]", 0, -50, 50, 1) : si.smoo;
+    d = hslider("h:[%i]Osc %i/[2]Detune [unit: half tones][style:knob]", 0, -50, 50, 1) : si.smoo;
 
     // Select envelope 1 or 2 for pitch modulation. Scale it using env slider and velocity.
     env_sel = nentry("h:[%i]Osc %i/[3]Pitch Env", 1, 1, 2, 1);
@@ -78,8 +89,8 @@ osc1 = osc(1, (1 + fm_index * (1 + fm_mod) * osc2));
 rmod = osc1 * osc2;
 
 // Create a short sawtooth signal for "crack" amplitude modulation
-crack_freq = hslider("h:[3]Crack/[0]Crack Speed [style:knob]", 100, 1, 5000, 0.1);
-crack_length = hslider("h:[3]Crack/[1]Crack Length [style:knob]", 3, 0, 10000, 1); // TODO: max should be Infinity
+crack_freq = hslider("h:[3]Crack/[0]Crack Speed [unit: Hz][scale:log][style:knob]", 100, 1, 5000, 0.1);
+crack_length = hslider("h:[3]Crack/[1]Crack Length [unit: cycles][scale:log][style:knob]", 3, 1, 10000, 1); // TODO: max should be Infinity
 
 // samples per cycle: SR / crack_freq, requested length in samples: crack_length * SR / crack_freq
 crack = ba.if(ba.countdown(crack_length * ma.SR / crack_freq, gain : ba.impulsify) > 0, (crack_freq : os.sawtooth) + 1 / 2, 1);
@@ -105,7 +116,7 @@ mix = osc1_lev * osc1, osc2_lev * osc2, rmod_lev * rmod :> *(1 - crack_lev + cra
 // TODO: EQ-Lo- / Hi-Shelf / EQ-Bell-Type
 flt_sel = nentry("h:[5]Filter/[0]Type", 1, 1, 4, 1);
 
-flt_f = hslider("h:[5]Filter/[1]Cutoff [style:knob]", 1000, 11.56, 18794, 1) : si.smoo;
+flt_f = hslider("h:[5]Filter/[1]Cutoff [unit: Hz][scale:log][style:knob]", 1000, 11.56, 18794, 1) : si.smoo;
 flt_res = hslider("h:[5]Filter/[2]Resonance [style:knob]", 30, 10, 50, 0.01) : si.smoo;
 
 // TODO: notch filter width should be selected depending on the "sounds frequency"
@@ -140,9 +151,9 @@ gain = button("h:[6]Amplifier/[2]Hit");
 // Envelopes
 env(i) = en.adsr(a, d, 0, r, gain) with {
     // TODO: Add shape parameter, time sliders should be logarithmic
-    a = hslider("h:[7]Envelopes/h:Env %i/[0]Attack [style:knob]", 0, 0, 8, 0.05) : si.smoo;
-    d = hslider("h:[7]Envelopes/h:Env %i/[1]Decay [style:knob]", 0.2, 0, 16, 0.05) : si.smoo;
-    r = hslider("h:[7]Envelopes/h:Env %i/[2]Release [style:knob]", 0, 0, 16, 0.05) : si.smoo;
+    a = hslider("h:[7]Envelopes/h:Env %i/[0]Attack [unit: s][scale:log][style:knob]", 0.001, 0.001, 8, 0.001) : si.smoo;
+    d = hslider("h:[7]Envelopes/h:Env %i/[1]Decay [unit: s][scale:log][style:knob]", 0.2, 0.001, 16, 0.001) : si.smoo;
+    r = hslider("h:[7]Envelopes/h:Env %i/[2]Release [unit: s][scale:log][style:knob]", 0.001, 0.001, 16, 0.001) : si.smoo;
 };
 
 env1 = env(1);
