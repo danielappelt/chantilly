@@ -43,6 +43,7 @@ osc(i, fMult) = fMult * freq : wf with {
         (sel == 3) * os.square(f),
         (sel == 4) * os.sawtooth(f),
         // freq. range is logarithmic, so sqrt(20000) = 141 should be the center freq. Use this for the noise oscillator
+        // TODO: Pattern matching is supposed to be faster than if. Find correct split frequency.
         (sel == 5) * (no.noise <: ba.if(f > 141, fi.highpass(2, f), fi.lowpass(2, f))),
         // latch samples no.noise at positive zero crossings of os.triangle(f)
         (sel == 6) * (no.noise : ba.latch(os.triangle(f))) :> _;
@@ -146,11 +147,14 @@ amp_mod = (amp_vel + amp_env) * env2;
 // https://github.com/grame-cncm/faust/blob/master/architecture/faust/gui/MidiUI.h#L462
 // https://github.com/grame-cncm/faust/blob/master/examples/misc/midiTester.dsp#L11
 // http://musinf.univ-st-etienne.fr/lac2017/pdfs/09_C_B_137724.pdf
-gain = button("h:[6]Amplifier/[2]Hit");
+key = 48; // TODO: make it a parameter
+gain = button("h:[6]Amplifier/[2]Hit [midi:keyon %key]") * hslider("h:[6]Amplifier/[3]Velocity [midi:keyon %key]", 0, 0, 1, 1/128);
 
 // Envelopes
-env(i) = en.adsr(a, d, 0, r, gain) with {
+env(i) = en.adsr(a, d, gain, r, gain) with {
     // TODO: Add shape parameter, time sliders should be logarithmic
+    // See https://github.com/grame-cncm/faust/blob/master-dev/libraries/envelopes.lib
+    // and https://github.com/grame-cncm/faust/blob/master-dev/libraries/basics.lib
     a = hslider("h:[7]Envelopes/h:Env %i/[0]Attack [unit: s][scale:log][style:knob]", 0.001, 0.001, 8, 0.001) : si.smoo;
     d = hslider("h:[7]Envelopes/h:Env %i/[1]Decay [unit: s][scale:log][style:knob]", 0.2, 0.001, 16, 0.001) : si.smoo;
     r = hslider("h:[7]Envelopes/h:Env %i/[2]Release [unit: s][scale:log][style:knob]", 0.001, 0.001, 16, 0.001) : si.smoo;
