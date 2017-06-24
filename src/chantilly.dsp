@@ -28,25 +28,30 @@ import("stdfaust.lib");
 // noise: first try..no.noise + "neg. f" lowpass + "pos. freq" highpass
 // sample&hold: sAndH is a standard Faust function: _ : sAndH(t) : _
 osc(i, fMult) = fMult * freq : wf with {
-    // shape / waveform selection
-    sel = nentry("h:[%i]Osc %i/[0]Shape", 1, 1, 6, 1);
     // Please note that we try to phase shift triangle, sine, square, and saw so that
     // they start with maximum amplitude. This way, we can create the typical click sound
     // at the beginning. If you don't want the click, turn env2 attack up.
-    wf(f) =
-        // Phase shift is done using @ delay. See sawNp(N,freq,phase) definition inside oscillators library.
-        // TODO: Currently, the phase shift only works as expected starting from a pitch around 2 Hz, as we
-        // restrict the delay to 8191 samples.
-        (sel == 1) * (os.triangle(f) : @(max(0,min(8191,int(0.25 * ma.SR/freq))))),
-        // Effectively, we use cosine here in order to start the sine wave with maximum amplitude.
-        (sel == 2) * os.oscrc(f),
-        (sel == 3) * os.square(f),
-        (sel == 4) * os.sawtooth(f),
-        // freq. range is logarithmic, so sqrt(20000) = 141 should be the center freq. Use this for the noise oscillator
-        // TODO: Pattern matching is supposed to be faster than if. Find correct split frequency.
-        (sel == 5) * (no.noise <: ba.if(f > 141, fi.highpass(2, f), fi.lowpass(2, f))),
-        // latch samples no.noise at positive zero crossings of os.triangle(f)
-        (sel == 6) * (no.noise : ba.latch(os.triangle(f))) :> _;
+    // TODO: I guess, os.triangle and the likes are constantly producing a signal so that currently the
+    // phase shifts are not really working as intended.
+
+    // Here, phase shift is done using @ delay. See sawNp(N,freq,phase) definition inside oscillators library.
+    // TODO: Currently, the phase shift only works as expected starting from a pitch around 2 Hz, as we
+    // restrict the delay to 8191 samples.
+    shape(0) = os.triangle : @(max(0, min(8191, int(0.25 * ma.SR/freq))));
+    // Effectively, we use cosine here in order to start the sine wave with maximum amplitude.
+    shape(1) = os.oscrc;
+    shape(2) = os.square;
+    shape(3) = os.sawtooth;
+    // Create filtered noise with respect to the selected pitch frequency.
+    // TODO: Find correct split frequency. Freq. range is logarithmic.
+    shape(4) = _, no.noise <: (_ > 141, !), fi.lowpass(2), fi.highpass(2) : select2;
+    // ba.latch samples no.noise at positive zero crossings of os.triangle
+    shape(5) = _, ! : os.triangle, no.noise : ba.latch;
+
+    // Shape / waveform selection. The par block applies a "solo" to the selected shape. wf multiplexes a given
+    // frequency signal into the par block. The soloed result of the block gets mixed into a mono signal.
+    sel = nentry("h:[%i]Osc %i/[0]Shape", 1, 1, 6, 1) - 1;
+    wf = _ <: par(j, 6, (sel == j) * shape(j)) :> _;
 
     // C-11..E10
     // TODO: logarithmic scale. See
